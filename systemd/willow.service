@@ -22,8 +22,5 @@ Environment="XDG_SESSION_TYPE=wayland"
 PrivateTmp=false
 NoNewPrivileges=false
 
-# Allow access to config and model directories
-ReadWritePaths=%h/.config/willow
-
 [Install]
 WantedBy=default.target

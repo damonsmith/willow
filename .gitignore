@@ -46,6 +46,7 @@ build/
 # AUR packaging artifacts (only at root level, not service/src/)
 /src/
 /pkg/
+/willow/
 *.pkg.tar.zst
 *.pkg.tar.xz
 *.pkg.tar.gz

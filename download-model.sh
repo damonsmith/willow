@@ -79,20 +79,38 @@ echo ""
 echo "Model saved to: $MODEL_PATH"
 echo ""
 
-# If not tiny.en, update config
-if [ "$MODEL" != "tiny.en" ]; then
-    CONFIG_FILE="$HOME/.config/willow/config.json"
-    if [ -f "$CONFIG_FILE" ]; then
-        echo "To use this model, update your config:"
-        echo "  1. Open: gnome-extensions prefs willow@saim"
-        echo "  2. Go to 'General' tab"
-        echo "  3. Change 'Whisper Model' to: $MODEL_FILE"
-        echo ""
-        echo "Or manually edit: $CONFIG_FILE"
-        echo "  Change 'model_path' to: $MODEL_PATH"
+# Set up config with the selected model
+CONFIG_DIR="$HOME/.config/willow"
+CONFIG_FILE="$CONFIG_DIR/config.json"
+mkdir -p "$CONFIG_DIR"
+
+if [ -f "$CONFIG_FILE" ]; then
+    # Update existing config - replace or add whisper_model key
+    if grep -q '"whisper_model"' "$CONFIG_FILE"; then
+        sed -i "s/\"whisper_model\":.*$/\"whisper_model\": \"$MODEL_FILE\",/" "$CONFIG_FILE"
+    else
+        # Insert whisper_model after the opening brace
+        sed -i "s/^{$/{\n  \"whisper_model\": \"$MODEL_FILE\",/" "$CONFIG_FILE"
     fi
+    echo "Updated config: $CONFIG_FILE"
+    echo "  whisper_model: $MODEL_FILE"
+else
+    # Create a default config with the model set
+    cat > "$CONFIG_FILE" << EOF
+{
+  "hotword": "hey willow",
+  "command_threshold": 80,
+  "processing_interval": 1.5,
+  "gpu_acceleration": false,
+  "whisper_model": "$MODEL_FILE",
+  "commands": []
+}
+EOF
+    echo "Created config: $CONFIG_FILE"
+    echo "  whisper_model: $MODEL_FILE"
 fi
 
+echo ""
 echo "Restart the service to use the new model:"
 echo "  systemctl --user restart willow.service"
 echo "==================================================================="

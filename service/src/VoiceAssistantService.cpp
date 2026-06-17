@@ -167,6 +167,12 @@ VoiceAssistantService::VoiceAssistantService(sdbus::IConnection& connection, std
     // Set initial worker
     m_currentWorker = m_normalWorker.get();
 
+    // Auto-start if whisper loaded successfully
+    if (m_segmenter->isWhisperLoaded()) {
+        log("INFO", "Auto-starting voice processing");
+        Start();
+    }
+
     log("INFO", "Voice Assistant Service initialized (refactored architecture)");
 }
 
