@@ -217,6 +217,8 @@ std::map<std::string, sdbus::Variant> VoiceAssistantService::GetStatus() {
     status["current_buffer"] = sdbus::Variant(GetBuffer());
     status["command_count"] = sdbus::Variant(static_cast<int32_t>(m_commands.size()));
     status["whisper_loaded"] = sdbus::Variant(m_segmenter->isWhisperLoaded());
+    status["gpu_enabled"] = sdbus::Variant(m_segmenter->isGPUEnabled());
+    status["whisper_model"] = sdbus::Variant(m_segmenter->getModelFile());
     
     return status;
 }

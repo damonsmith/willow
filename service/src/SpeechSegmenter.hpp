@@ -6,6 +6,9 @@
 #include <functional>
 #include <mutex>
 #include <atomic>
+#include <thread>
+#include <queue>
+#include <condition_variable>
 
 namespace VoiceAssistant {
 
@@ -42,12 +45,16 @@ public:
     // State
     bool isWhisperLoaded() const { return m_whisperCtx != nullptr; }
     bool isSpeaking() const { return m_isSpeaking; }
+    bool isGPUEnabled() const { return m_gpuEnabled; }
+    std::string getModelFile() const { return m_modelFile; }
 
 private:
     // Whisper context
     whisper_context* m_whisperCtx;
     whisper_full_params m_whisperParams;
     std::string m_modelPath;
+    std::string m_modelFile;
+    bool m_gpuEnabled;
     
     // VAD parameters
     float m_vadThreshold;           // Energy threshold for voice detection
@@ -68,6 +75,14 @@ private:
     // Callback
     TranscriptionCallback m_callback;
     std::mutex m_callbackMutex;
+    
+    // Async transcription thread
+    std::thread m_transcriptionThread;
+    std::queue<std::vector<float>> m_transcriptionQueue;
+    std::mutex m_queueMutex;
+    std::condition_variable m_queueCV;
+    std::atomic<bool> m_stopTranscription;
+    void transcriptionWorker();
     
     // VAD helper
     bool detectVoiceActivity(const std::vector<float>& frame);

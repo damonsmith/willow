@@ -17,6 +17,7 @@ SpeechSegmenter::SpeechSegmenter()
     , m_isSpeaking(false)
     , m_silenceFrames(0)
     , m_speechFrames(0)
+    , m_stopTranscription(false)
 {
 }
 
@@ -26,6 +27,8 @@ SpeechSegmenter::~SpeechSegmenter() {
 
 bool SpeechSegmenter::initialize(const std::string& modelPath, const std::string& modelFile, bool useGPU) {
     m_modelPath = modelPath + "/" + modelFile;
+    m_modelFile = modelFile;
+    m_gpuEnabled = useGPU;
     
     // Initialize whisper context with GPU support
     whisper_context_params cparams = whisper_context_default_params();
@@ -54,10 +57,25 @@ bool SpeechSegmenter::initialize(const std::string& modelPath, const std::string
     m_whisperParams.single_segment = false;
     
     log("INFO", "Whisper initialized successfully");
+    
+    // Start the async transcription worker thread
+    m_stopTranscription = false;
+    m_transcriptionThread = std::thread(&SpeechSegmenter::transcriptionWorker, this);
+    
     return true;
 }
 
 void SpeechSegmenter::shutdown() {
+    // Stop the transcription worker thread
+    {
+        std::lock_guard<std::mutex> lock(m_queueMutex);
+        m_stopTranscription = true;
+    }
+    m_queueCV.notify_one();
+    if (m_transcriptionThread.joinable()) {
+        m_transcriptionThread.join();
+    }
+    
     if (m_whisperCtx) {
         whisper_free(m_whisperCtx);
         m_whisperCtx = nullptr;
@@ -101,18 +119,12 @@ void SpeechSegmenter::processAudioChunk(const std::vector<float>& chunk) {
                 
                 // Only transcribe if speech was long enough
                 if (speechDuration >= m_minSpeechDuration) {
-                    // Transcribe the complete segment
-                    std::string transcription = transcribe(m_speechBuffer);
-                    
-                    if (!transcription.empty()) {
-                        log("INFO", "Transcription: " + transcription);
-                        
-                        // Call the callback
-                        std::lock_guard<std::mutex> lock(m_callbackMutex);
-                        if (m_callback) {
-                            m_callback(transcription);
-                        }
+                    // Queue the segment for async transcription (non-blocking)
+                    {
+                        std::lock_guard<std::mutex> lock(m_queueMutex);
+                        m_transcriptionQueue.push(std::move(m_speechBuffer));
                     }
+                    m_queueCV.notify_one();
                 } else {
                     log("INFO", "Speech too short, ignoring (duration: " + 
                         std::to_string(speechDuration) + "s)");
@@ -201,6 +213,42 @@ std::string SpeechSegmenter::cleanTranscription(const std::string& text) {
     std::transform(result.begin(), result.end(), result.begin(), ::tolower);
     
     return result;
+}
+
+void SpeechSegmenter::transcriptionWorker() {
+    log("INFO", "Transcription worker thread started");
+    
+    while (true) {
+        std::vector<float> samples;
+        
+        {
+            std::unique_lock<std::mutex> lock(m_queueMutex);
+            m_queueCV.wait(lock, [this] {
+                return m_stopTranscription || !m_transcriptionQueue.empty();
+            });
+            
+            if (m_stopTranscription && m_transcriptionQueue.empty()) {
+                break;
+            }
+            
+            samples = std::move(m_transcriptionQueue.front());
+            m_transcriptionQueue.pop();
+        }
+        
+        // Transcribe on this dedicated thread (doesn't block audio capture)
+        std::string transcription = transcribe(samples);
+        
+        if (!transcription.empty()) {
+            log("INFO", "Transcription: " + transcription);
+            
+            std::lock_guard<std::mutex> lock(m_callbackMutex);
+            if (m_callback) {
+                m_callback(transcription);
+            }
+        }
+    }
+    
+    log("INFO", "Transcription worker thread stopped");
 }
 
 void SpeechSegmenter::log(const std::string& level, const std::string& message) {

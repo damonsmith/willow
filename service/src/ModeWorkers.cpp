@@ -77,10 +77,10 @@ void CommandModeWorker::start() {
     // Configure segmenter for command recognition
     // Normal VAD threshold
     m_segmenter->setVADThreshold(0.001f);
-    // Moderate silence duration
-    m_segmenter->setSilenceDuration(0.8f);
+    // Shorter silence duration for faster response
+    m_segmenter->setSilenceDuration(0.5f);
     // Normal minimum speech
-    m_segmenter->setMinSpeechDuration(0.3f);
+    m_segmenter->setMinSpeechDuration(0.25f);
     
     {
         std::lock_guard<std::mutex> lock(m_bufferMutex);

@@ -216,6 +216,11 @@ class VoiceAssistantIndicator extends PanelMenu.Button {
         });
         this.menu.addMenuItem(this._serviceStatusItem);
         
+        this._modelInfoItem = new PopupMenu.PopupMenuItem('Model: ...', {
+            reactive: false
+        });
+        this.menu.addMenuItem(this._modelInfoItem);
+        
         this._startItem = new PopupMenu.PopupMenuItem('Start Service');
         this._startItem.connect('activate', () => this._startService());
         this.menu.addMenuItem(this._startItem);
@@ -423,6 +428,12 @@ class VoiceAssistantIndicator extends PanelMenu.Button {
         if (status.current_buffer !== undefined) {
             this._currentBuffer = status.current_buffer.unpack();
         }
+        if (status.gpu_enabled !== undefined) {
+            this._gpuEnabled = status.gpu_enabled.unpack();
+        }
+        if (status.whisper_model !== undefined) {
+            this._whisperModel = status.whisper_model.unpack();
+        }
         
         this._updateDisplay();
     }
@@ -487,6 +498,12 @@ class VoiceAssistantIndicator extends PanelMenu.Button {
             this._serviceStatusItem.label.text = this._isRunning 
                 ? 'Service: Running' 
                 : 'Service: Stopped';
+        }
+        
+        if (this._modelInfoItem && this._whisperModel) {
+            const model = this._whisperModel.replace('ggml-', '').replace('.bin', '');
+            const gpu = this._gpuEnabled ? 'GPU' : 'CPU';
+            this._modelInfoItem.label.text = `Model: ${model} (${gpu})`;
         }
         
         // Update menu button sensitivity
